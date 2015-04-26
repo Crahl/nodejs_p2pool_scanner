@@ -1,0 +1,260 @@
+extends layout
+
+block append css
+  style(type='text/css').
+    #notice {
+      background: #5bc0de;
+      color:black;
+    }
+    .capatilize {
+      text-transform: capitalize;
+    }
+block append content
+    .container
+      .page-header
+        .row
+          .col-lg-12
+            .well.well-sm
+              | Last Scanned 
+              span#update
+        #chart
+        .row
+          .col-lg-12
+            table#sortTable.table.table-bordered.table-striped.table-hover
+              thead
+                tr
+                  th(title='Click to sort', data-sort='string-ins') Address
+                  th(title='Click to sort', data-sort='string-ins') Location
+                  th(title='Click to sort', data-sort='float') Fee
+                  th(title='Click to sort', data-sort='int') Uptime
+                  th(title='Click to sort', data-sort='int') Efficiency
+                  th(title='Click to sort', data-sort='int') Local Hash rate
+                  th(title='Click to sort', data-sort='int') DASH Hash rate
+                  th(title='Click to sort', data-sort='int') Users
+                  th(title='Click to sort', data-sort='int') Ping
+                  th(title='Get Work Template Latency') GWTL
+                  th(title='Click to sort', data-sort='string-ins') Version
+              tbody#list
+
+block append scripts
+  script(type='text/javascript', src='//cdn.socket.io/socket.io-1.0.0.js')
+  script(type='text/javascript', src='//code.highcharts.com/highcharts.js')
+  script(type='text/javascript', src='//cdnjs.cloudflare.com/ajax/libs/highcharts/4.0.4/themes/dark-unica.js')
+  script(type='text/javascript', src='//cdnjs.cloudflare.com/ajax/libs/moment.js/2.8.4/moment.min.js')
+  script(type='text/javascript', src='//cdnjs.cloudflare.com/ajax/libs/stupidtable/0.0.1/stupidtable.min.js')
+
+  script(type='text/javascript').
+    var socket = io.connect();
+    $(document).ready(function(){
+      loadChart();
+      loadServers();
+      setTimeout(function(){$('#sortTable').stupidtable();},1000);
+    });
+    function gwtl(address,id){
+      all = 0;
+      ii = 0;
+      $.getJSON('http://'+address+'/web/graph_data/getwork_latency/last_hour',function (res){
+        $.each(res, function(i,v) {
+          all += v[1];
+          ii++;
+        });
+        avg = (all/ii) * 1000;
+        if(avg > 1000) {
+          $(id).find('.gwtl').html('<span class="label label-danger">' + avg.toFixed(2) + ' ms</span>');
+        } else if(avg > 500) {
+          $(id).find('.gwtl').html('<span class="label label-warning">' + avg.toFixed(2) + ' ms</span>');
+        } else {
+          $(id).find('.gwtl').html('<span class="label label-success">' + avg.toFixed(2) + ' ms</span>');
+        }
+      });
+    }
+    function loadServers(){
+      var servers = [];
+      var nodes = [];
+      index=0;
+      socket.on('initiateNodes', function (data) {
+        nodes = data.nodes;
+        coin = nodes.shift();
+        $("#update").text(moment(parseInt(coin[0] + '000')).format('MMM Do YYYY, HH:mm Z'));
+        json = nodes;
+        $.each(json, function(index, node){
+          servers.push(["#" + node[0].replace(/\./g, "_"), node[0], coin[1], coin[2], toTitleCase(node[1]) + ' <img src=/assets/img/flags/' + node[2] + '.gif align=absmiddle border=0/>']);
+        });
+        $.each(servers, function(i,v){
+          var timeStart = new Date().getTime();
+          $.get('http://'+v[1]+':'+v[2]+'/fee', function(res) {
+            $(v[0]+' .fee').html(res + '%');
+          }).success(function (fee){
+            elapsed = new Date().getTime() - timeStart;
+            if($(v[0]).is('*') == false){
+              $('#list').append('<tr id="'+v[0].substring(1)+'"><td>'+'<a href="http://'+v[1]+':'+v[2]+'" target="_blank">'+v[1]+':'+v[2]+'</a>'+'</td><td class=capatilize>'+v[4]+'</td>'+'<td class="fee">'+fee+'%</td><td class="uptime">Loading...</td><td class="effeciency">Loading...</td><td class="hash_rate">Loading...</td><td class="network_hash">Loading...</td><td class="users">Loading...</td><td class="ping">Loading...</td><td class="gwtl" onClick="gwtl(\''+v[1]+':'+v[2]+'\',\''+v[0]+'\');">Check</td><td class="version"></td></tr>');
+            }
+            if(elapsed > 1000){
+              $(v[0]+' .ping').html('<span class="label label-danger">' + elapsed + 'ms</span>');
+            } else if(elapsed > 250) {
+              $(v[0]+' .ping').html('<span class="label label-warning">' + elapsed + 'ms</span>');
+            } else {
+              $(v[0]+' .ping').html('<span class="label label-success">' + elapsed + 'ms</span>');
+            }
+            $(v[0]+' .ping').attr('data-sort-value',elapsed);
+            $.getJSON('http://'+v[1]+':'+v[2]+'/local_stats', function(res) {
+              uptime = res.uptime/60/60/24;
+              if(uptime < 1){
+                uptime = res.uptime/60/60;
+                $(v[0]).find('.uptime').html(uptime.toFixed(1) + ' hours');
+              } else {
+                $(v[0]).find('.uptime').html('<b>' + uptime.toFixed(1) + ' days</b>');
+              }
+              effeciency = res.efficiency * 100;
+              rate = 0;
+              users = 0;
+              $.each(res.miner_hash_rates, function(ii,rates) {
+                rate += rates;
+                users++;
+              });
+              $(v[0]).find('.users').html(users);
+              if(rate == 0) {
+                $(v[0]).find('.effeciency').html('N/A');
+              } else {
+                $(v[0]).find('.effeciency').html(effeciency.toFixed(2) + '%');
+              }
+              if(rate > 1000000000) {
+                n = rate/1000/1000/1000;
+                $(v[0]).find('.hash_rate').html(n.toFixed(2) + ' GH/s');
+              } else if(rate > 1000000) {
+                n = rate/1000/1000;
+                $(v[0]).find('.hash_rate').html(n.toFixed(2) + ' MH/s');
+              } else if(rate > 1000) {
+                n = rate/1000;
+                $(v[0]).find('.hash_rate').html(n.toFixed(2) + ' KH/s');
+              } else {
+                $(v[0]).find('.hash_rate').html(rate + ' H/s');
+              }
+              $(v[0]+' .hash_rate').attr('data-sort-value',rate);
+              $(v[0]+' .uptime').attr('data-sort-value',res.uptime);
+              $(v[0]+' .effeciency').attr('data-sort-value',effeciency.toFixed(0));
+              $.getJSON('http://'+v[1]+':'+v[2]+'/web/version', function(res) {
+                $(v[0]).find('.version').html(res.trunc(25));
+              });
+              $.getJSON('http://'+v[1]+':'+v[2]+'/global_stats', function(res) {
+                if(res.network_hashrate > 1000000000) {
+                  n = res.network_hashrate/1000/1000/1000;
+                  $(v[0]).find('.network_hash').html(n.toFixed(2) + ' GH/s');
+                } else if(res.network_hashrate > 1000000) {
+                  n = res.network_hashrate/1000/1000;
+                  $(v[0]).find('.network_hash').html(n.toFixed(2) + ' MH/s');
+                } else if(res.network_hashrate > 1000) {
+                  n = res.network_hashrate/1000;
+                  $(v[0]).find('.network_hash').html(n.toFixed(2) + ' KH/s');
+                } else {
+                  $(v[0]).find('.network_hash').html(res.network_hashrate + ' H/s');
+                }
+              });
+            });
+          }).error(function (){
+            $(v[0]).remove();
+          });
+        });
+      });
+    }
+    function loadChart(){
+      Highcharts.setOptions({
+        global: {
+          useUTC: false
+        }
+      });
+      chart = new Highcharts.Chart({
+        chart: {
+          renderTo: 'chart',
+          zoomType: 'x',
+          events: {
+            load: function() {
+              socket.on('initiateChart', function (data) {
+                //console.log("Initialize");
+                //console.log(data.dataPoints);
+                var dataPoints = data.dataPoints['p2pool_hashrate'];
+                chart.series[0].setData(dataPoints);
+              });
+              socket.on('updateChart', function(data) {
+                //console.log("Update");
+                //console.log(data.newPoint);
+                var newPoint = data.newPoint['p2pool_hashrate'];
+                chart.series[0].addPoint(newPoint, true, true);
+              });
+            }
+          }
+        },
+        title: {
+          text: 'P2Pool Network Hashrate'
+        },
+        subtitle: {
+          text: document.ontouchstart === undefined ? 'Click and drag in the plot area to zoom in' : 'Pinch the chart to zoom in'
+        },
+        xAxis: {
+          type: 'datetime',
+          labels: {
+            formatter: function () {
+              return Highcharts.dateFormat('%b %d %H:%M', this.value);
+            }
+          }
+        },
+        tooltip: {
+          formatter: function() {
+            return moment(this.x).format('MMM Do YYYY, HH:mm') + '<br/>Hashrate ' + (this.y/1000/1000).toFixed(2) + 'MH/s' ;
+          }
+        },
+        yAxis: {
+          title: {
+            text: 'Hashrate'
+          },
+          labels: {
+            formatter: function() {
+              return this.value/1000/1000/1000 + ' GH/s';
+            }
+          }
+        },
+        credits: {
+          text: 'Crahl.ca',
+          href: 'http://www.crahl.ca'
+        },
+        legend: {
+          enabled: false
+        },
+        plotOptions: {
+          series: {
+            turboThreshold :0
+          },
+          area: {
+            fillColor: {
+              linearGradient: { x1: 0, y1: 0, x2: 0, y2: 1},
+              stops: [
+                [0, Highcharts.getOptions().colors[0]],
+                [1, Highcharts.Color(Highcharts.getOptions().colors[0]).setOpacity(0).get('rgba')]
+              ]
+            },
+            marker: {
+              radius: 2
+            },
+            lineWidth: 1,
+            states: {
+              hover: {
+                lineWidth: 1
+              }
+            },
+            threshold: null
+          }
+        },
+        series: [{
+          type: 'area',
+          name: 'Hashrate',
+          pointStart: (Math.round(new Date().getTime()/1000.0)*1000)-24*60*60*1000,
+          pointInterval: 60 * 1000,
+          data: []
+        }]
+      });
+    }
+    String.prototype.trunc = String.prototype.trunc || function(n){ return this.length>n ? this.substr(0,n-1)+'&hellip;' : this; };
+    function toTitleCase(str){
+      return str.replace(/\\w\S*/g, function(txt){return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();});
+    }
+
