@@ -25,6 +25,18 @@ app.get('/', function(req, res) {
 	});
 });
 
+app.get('/map', function(req, res) {
+	res.render('map', {
+		title: 'DASH P2Pool Scanner Map'
+	});
+});
+
+app.get('/chart', function(req, res) {
+	res.render('chart', {
+		title: 'DASH P2Pool Scanner Chart'
+	});
+});
+
 // =====================================
 // Error Handler========================
 // =====================================
@@ -43,10 +55,20 @@ app.use(function(err, req, res, next) {
 // Socket Handler=======================
 // =====================================
 io.on('connection', function (socket) {
+        var exec = require('child_process').exec;
+	exec("perl /srv/git/nodejs_p2pool_scanner/perl/fetch_rrd.pl /srv/git/nodejs_p2pool_scanner/perl/rrd/dash.rrd AVERAGE 300 now -24h", function(err, stdout, stderr) {
+		socket.emit('initiateChart', { dataPoints: JSON.parse(stdout) });
+	});
 	fs.readFile('dash.json', function(err, data) {
 		socket.emit('initiateNodes', { nodes: JSON.parse(data) });
 	});
 });
+setInterval(function(){
+	var exec = require('child_process').exec;
+	exec("perl /srv/git/nodejs_p2pool_scanner/perl/fetch_rrd.pl /srv/git/nodejs_p2pool_scanner/perl/rrd/dash.rrd AVERAGE 300 now -60s", function(err, stdout, stderr) {
+		io.emit('updateChart', { newPoint: JSON.parse(stdout) });
+	});
+}, 60000);
 
 // launch ======================================================================
 //
@@ -54,3 +76,4 @@ app.set('port', process.env.PORT || port);
 server.listen(app.get('port'), function() {
 	console.log('Express server listening on port ' + server.address().port);
 });
+
