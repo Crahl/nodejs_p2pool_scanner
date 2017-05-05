@@ -1,26 +1,26 @@
 Update and Install
 
-sudo apt-get update
-sudo apt-get install git npm librrds-perl
-git clone https://github.com/Crahl/nodejs_p2pool_scanner.git
-cd nodejs_p2pool_scanner
-npm install
+$ sudo apt-get update
+$ sudo apt-get install git npm librrds-perl
+$ git clone https://github.com/Crahl/nodejs_p2pool_scanner.git
+$ cd nodejs_p2pool_scanner
+$ npm install
 
 Install perl modules
 
-sudo cpan JSON
-sudo cpan POE::Component::Client::HTTP
-sudo cpan Geo::IP
+$ sudo cpan JSON
+$ sudo cpan POE::Component::Client::HTTP
+$ sudo cpan Geo::IP
 
-cd /tmp
-wget -N http://geolite.maxmind.com/download/geoip/database/GeoLiteCity.dat.gz
-gunzip GeoLiteCity.dat.gz
-sudo mkdir /usr/local/share/GeoIP
-sudo mv GeoLiteCity.dat /usr/local/share/GeoIP/
+$ cd /tmp
+$ wget -N http://geolite.maxmind.com/download/geoip/database/GeoLiteCity.dat.gz
+$ gunzip GeoLiteCity.dat.gz
+$ sudo mkdir /usr/local/share/GeoIP
+$ sudo mv GeoLiteCity.dat /usr/local/share/GeoIP/
 
 Start Server
 
-nodejs server.js
+$ nodejs server.js
 
 View base page at localhost:3000/
 View map page at localhost:3000/map
