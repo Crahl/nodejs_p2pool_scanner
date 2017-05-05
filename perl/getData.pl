@@ -37,7 +37,7 @@ if (!-e $rrdPath. "/" . $rrdFile){
 ###Get P2Pool Stats
 #############################################################################################
 
-my $url = 'http://p2pool.home.lan:7903/global_stats';
+my $url = 'http://p2pool:7903/global_stats';
 my $json = get $url;
 die "Couldn't get $url" unless defined $json;
 
